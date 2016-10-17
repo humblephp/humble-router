@@ -20,31 +20,42 @@ class Router
         $this->container = $container;
     }
 
-    public function add(string $requestMethod, string $requestUri, callable $callable)
+    public function add(string $method, string $path, callable $callable, array $middleware = array())
     {
-        $this->routes[$requestMethod][$requestUri] = $callable;
+        $this->routes[$method][$path] = [
+            'callable' => $callable,
+            'middleware' => $middleware,
+        ];
     }
 
-    public function dispatch()
+    public function middleware(): array
     {
-        $requestMethod = $this->container->offsetGet('request')->getMethod();
-        $requestUri = $this->container->offsetGet('request')->getUri()->getPath();
+        $method = $this->container->request->getMethod();
+        $path = $this->container->request->getUri()->getPath();
 
-        if (isset($this->routes[$requestMethod][$requestUri])) {
-            // static route
-            return $this->routes[$requestMethod][$requestUri]($this->container);
+        return $this->middleware[$method][$path]['middleware'] ?? array();
+    }
+
+    public function dispatch(): ResponseInterface
+    {
+        $method = $this->container->request->getMethod();
+        $path = $this->container->request->getUri()->getPath();
+
+        if (isset($this->routes[$method][$path]['callable'])) {
+            return $this->routes[$method][$path]['callable']($this->container); // static route
         }
 
-        foreach ($this->routes[$requestMethod] as $routeUri => $callback) {
-            if (preg_match($this->getPattern($routeUri), $requestUri, $args)) {
-                // dynamic route
-                return $callback($this->container, $args);
+        foreach ($this->routes[$method] as $routePath => $route) {
+            if (preg_match($this->getPattern($routePath), $path, $args)) {
+                return $route['callable']($this->container, $args); // dynamic route
             }
         }
+
+        throw new RouteNotFoundException('Route Not Found');
     }
 
-    private function getPattern($routeUri)
+    private function getPattern($path): string
     {
-        return '#^' . preg_replace(array_keys($this->patterns), array_values($this->patterns), $routeUri) . '$#';
+        return '#^' . preg_replace(array_keys($this->patterns), array_values($this->patterns), $path) . '$#';
     }
 }
