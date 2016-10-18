@@ -33,7 +33,7 @@ class Router
         $method = $this->container->request->getMethod();
         $path = $this->container->request->getUri()->getPath();
 
-        return $this->middleware[$method][$path]['middleware'] ?? array();
+        return $this->routes[$method][$path]['middleware'] ?? array();
     }
 
     public function dispatch(): ResponseInterface
